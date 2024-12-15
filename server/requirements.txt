@@ -1,0 +1,4 @@
+openai
+websocket
+'uvicorn[standard]'
+python-dotenv
