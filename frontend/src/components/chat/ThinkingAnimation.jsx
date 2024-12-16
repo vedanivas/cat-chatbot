@@ -1,5 +1,3 @@
-import React from 'react';
-
 const ThinkingAnimation = () => {
   return (
     <div className="flex items-center space-x-2 p-4">

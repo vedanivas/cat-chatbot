@@ -8,8 +8,11 @@ from typing_extensions import override
 from utils import get_output
 
 from pydantic import BaseModel
+
+
 class Id(BaseModel):
     id: int
+
 
 client = OpenAI()
 
@@ -43,24 +46,23 @@ def parse_messages(messages):
         for message in messages.data
     ]
 
+
 @app.get("/get_chats")
 def get_chats():
     global thread_id
-    with open('threads.json', 'r') as f:
+    with open("threads.json", "r") as f:
         threads = json.load(f)
-    
+
     chats = []
     for chat_id, t_id in threads.items():
         if thread_id == "":
             thread_id = t_id
 
         messages = client.beta.threads.messages.list(thread_id=t_id)
-        chats.append({
-            "id": int(chat_id),
-            "messages": parse_messages(messages)[::-1]
-        })
-    
+        chats.append({"id": int(chat_id), "messages": parse_messages(messages)[::-1]})
+
     return chats
+
 
 @app.get("/get_messages")
 def get_messages():
@@ -73,28 +75,25 @@ async def create_thread(id: Id):
     global thread_id
     thread = client.beta.threads.create()
 
-    with open('threads.json', 'r') as f:
+    with open("threads.json", "r") as f:
         threads = json.load(f)
     threads[str(id.id)] = thread.id
 
-    with open('threads.json', 'w') as f:
+    with open("threads.json", "w") as f:
         json.dump(threads, f)
-    
+
     thread_id = thread.id
 
-    print(thread_id)
-
     return f"Thread created: {thread.id}"
+
 
 @app.post("/select_thread")
 async def select_thread(id: Id):
     global thread_id
-    with open('threads.json', 'r') as f:
+    with open("threads.json", "r") as f:
         threads = json.load(f)
-    
-    thread_id = threads[str(id.id)]
 
-    print(thread_id)
+    thread_id = threads[str(id.id)]
 
     return f"Thread selected: {thread_id}"
 
@@ -107,7 +106,7 @@ async def websocket_endpoint(ws: WebSocket):
         @override
         def on_event(self, event):
             if event.event == "thread.run.requires_action":
-                run_id = event.data.id  
+                run_id = event.data.id
                 asyncio.create_task(self.handle_requires_action(event.data, run_id))
 
         async def handle_requires_action(self, data, run_id):
@@ -138,7 +137,7 @@ async def websocket_endpoint(ws: WebSocket):
             role="user",
             content=msg,
         )
-        
+
         with client.beta.threads.runs.stream(
             thread_id=thread_id, assistant_id=assistant_id, event_handler=EventHandler()
         ) as stream:
@@ -146,10 +145,11 @@ async def websocket_endpoint(ws: WebSocket):
 
     while True:
         msg = await ws.receive_text()
-        
+
         await get_response(msg)
 
         await ws.send_text("[START]")
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

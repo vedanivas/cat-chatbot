@@ -8,9 +8,13 @@ export const useChat = () => {
   const [streamData, setStreamData] = useState("");
 
   const wsRef = useRef(null);
+  const activeChatRef = useRef(activeChat);
 
   useEffect(() => {
-    // Create a new WebSocket connection
+    activeChatRef.current = activeChat;
+  }, [activeChat]);
+
+  useEffect(() => {
     wsRef.current = new WebSocket("ws://localhost:8000/ws");
 
     wsRef.current.onopen = () => {
@@ -18,7 +22,8 @@ export const useChat = () => {
     };
 
     wsRef.current.onmessage = (event) => {
-      // Handle incoming messages from the server
+      console.log("Active Chat ID: ", activeChatRef.current);
+
       if (event.data === "[START]") {
         console.log("Start receiving data from the server.");
         setStreamData("");
@@ -28,11 +33,13 @@ export const useChat = () => {
 
         setStreamData((prev) => {
           const updated = prev + event.data; 
-
+          
+          console.log(updated);
+          
           setChats((prevChats) => {
             const updatedChats = [...prevChats];
 
-            const currMsgs = [...updatedChats[activeChat].messages];
+            const currMsgs = [...updatedChats[activeChatRef.current].messages];
 
             if (currMsgs.length > 0 && currMsgs[currMsgs.length - 1].role === 'bot') {
               currMsgs[currMsgs.length - 1] = {
@@ -43,15 +50,14 @@ export const useChat = () => {
               currMsgs.push({ role: 'bot', content: updated }); 
             }
 
-            updatedChats[activeChat] = {
-              ...updatedChats[activeChat],
+            updatedChats[activeChatRef.current] = {
+              ...updatedChats[activeChatRef.current],
               messages: currMsgs,
             };
 
             return updatedChats; 
           });
 
-          console.log(updated);
           return updated; 
         });
 
@@ -66,7 +72,6 @@ export const useChat = () => {
       console.log("WebSocket connection closed.");
     };
 
-    // Clean up on unmount
     return () => {
       if (wsRef.current) {
         wsRef.current.close();
@@ -78,34 +83,16 @@ export const useChat = () => {
     const get_chats = async () => {
       const response = await axios.get("http://localhost:8000/get_chats");
       const data = response.data;
-      console.log(data)
+
       setChats(data);
     }
 
-    const get_messages = async () => {
-      const response = await axios.get("http://localhost:8000/get_messages");
-      const data = response.data;
-
-      setChats((prevChats) => {
-        const updatedChats = [...prevChats];
-
-        updatedChats[activeChat] = {
-          ...prevChats[activeChat],
-          messages: data,
-        };
-
-        return updatedChats;
-      })
-    }
-
     get_chats();
-    // get_messages();
-    console.log(chats)
   }, [])
 
   const handleNewChat = async () => {
     const newChatId = chats.length;
-    await axios.post(`http://localhost:8000/create_thread`, { id: newChatId });
+    axios.post(`http://localhost:8000/create_thread`, { id: newChatId });
 
     setChats([...chats, { id: newChatId, messages: [] }]);
     setActiveChat(newChatId);
@@ -126,8 +113,6 @@ export const useChat = () => {
       return updatedChats;
     });
 
-
-    // Simulate API delay
     try {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         await wsRef.current.send(content);
@@ -138,9 +123,10 @@ export const useChat = () => {
   };
 
   const handleSelectChat = async (chatId) => {
-    await axios.post(`http://localhost:8000/select_thread`, { id: chatId })
-
+    console.log("Selecting chat with ID:", chatId);
     setActiveChat(chatId);
+
+    await axios.post(`http://localhost:8000/select_thread`, { id: chatId })
   };
 
   return {
